@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ytptube
+    env: docker
+    plan: free
+    healthCheckPath: /
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: YTP_PORT
+        value: 10000
