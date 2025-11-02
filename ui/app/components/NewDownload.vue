@@ -12,12 +12,12 @@
               <div class="field is-grouped">
                 <div class="control is-expanded">
                   <input type="text" class="input" id="url" placeholder="URLs to download"
-                    :disabled="!socket.isConnected || addInProgress" v-model="form.url">
+                    :disabled="addInProgress" v-model="form.url">
                 </div>
                 <div class="control">
                   <button type="submit" class="button is-primary"
-                    :class="{ 'is-loading': !socket.isConnected || addInProgress }"
-                    :disabled="!socket.isConnected || addInProgress || !form?.url">
+                    :class="{ 'is-loading': addInProgress }"
+                    :disabled="addInProgress || !form?.url">
                     <span class="icon"><i class="fa-solid fa-plus" /></span>
                     <span>Add</span>
                   </button>
@@ -302,97 +302,67 @@ const is_valid_dl_field = (dl_field: string): boolean => {
 }
 
 const addDownload = async () => {
-  let form_cli = (form.value?.cli || '').trim()
-
-  if (dlFields.value && Object.keys(dlFields.value).length > 0) {
-    const joined = []
-    for (const [key, value] of Object.entries(dlFields.value)) {
-      if (false === is_valid_dl_field(key)) {
-        continue
-      }
-
-      if ([undefined, null, '', false].includes(value as any)) {
-        continue
-      }
-
-      const keyRegex = new RegExp(`(^|\\s)${key}(\\s|$)`);
-      if (form_cli && keyRegex.test(form_cli)) {
-        continue;
-      }
-
-      joined.push(true === value ? `${key}` : `${key} ${value}`)
-    }
-
-    if (joined.length > 0) {
-      form_cli = form_cli ? `${form_cli} ${joined.join(' ')}` : joined.join(' ')
-    }
-
+  if (!form.value.url) {
+    return;
   }
 
-  if (form_cli && form_cli.trim()) {
-    const options = await convertOptions(form_cli)
-    if (null === options) {
-      return
-    }
+  // Just take the first URL for now
+  const url = form.value.url.split(separator.value)[0].trim();
+  if (!url) {
+    return;
   }
-
-  const request_data = [] as Array<item_request>
-
-  form.value.url.split(separator.value).forEach(async (url: string) => {
-    if (!url.trim()) {
-      return
-    }
-
-    const data = {
-      url: url,
-      preset: form.value.preset || config.app.default_preset,
-      folder: form.value.folder,
-      template: form.value.template,
-      cookies: form.value.cookies,
-      cli: form_cli,
-      auto_start: auto_start.value
-    } as item_request
-
-    if (form.value?.extras && Object.keys(form.value.extras).length > 0) {
-      data.extras = form.value.extras
-    }
-
-    request_data.push(data)
-  })
 
   try {
-    addInProgress.value = true
-    const response = await request('/api/history', {
+    addInProgress.value = true;
+    const response = await request('/api/submit', {
       method: 'POST',
-      body: JSON.stringify(request_data),
-    })
+      body: JSON.stringify({ url }),
+    });
 
-    const data = await response.json()
+    const data = await response.json();
     if (!response.ok) {
-      toast.error(`Error: ${data.error || 'Failed to add download.'}`)
-      return
+      toast.error(`Error: ${data.error || 'Failed to add download.'}`);
+      return;
     }
 
-    let had_errors = false
+    const jobId = data.job_id;
+    toast.success(`Download started with job ID: ${jobId}`);
+    form.value.url = '';
+    emitter('clear_form');
 
-    data.forEach((item: Record<string, any>) => {
-      if (false !== item.status) {
-        return
+    // Start polling
+    const pollInterval = setInterval(async () => {
+      try {
+        const statusResponse = await request(`/api/status/${jobId}`);
+        const statusData = await statusResponse.json();
+
+        if (statusData.status === 'completed') {
+          clearInterval(pollInterval);
+          toast.success(`Download completed! File available at: ${statusData.filepath}`);
+          // We can also create a download link here
+          const a = document.createElement('a');
+          a.href = `api/download/${statusData.filepath}`;
+          a.download = statusData.filepath.split('/').pop();
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+        } else if (statusData.status === 'failed') {
+          clearInterval(pollInterval);
+          toast.error(`Download failed: ${statusData.error}`);
+        }
+        // if 'in-progress' or 'pending', do nothing and wait for the next poll
+      } catch (e) {
+        clearInterval(pollInterval);
+        toast.error('Failed to get download status.');
       }
-      toast.error(`Error: ${item.msg || 'Failed to add download.'}`)
-      had_errors = true
-    })
+    }, 3000); // Poll every 3 seconds
 
-    if (false === had_errors) {
-      form.value.url = ''
-      emitter('clear_form')
-    }
-  }
-  catch (e: any) {
-    console.error(e)
-    toast.error(`Error: ${e.message}`)
+  } catch (e: any) {
+    console.error(e);
+    toast.error(`Error: ${e.message}`);
   } finally {
-    addInProgress.value = false
+    addInProgress.value = false;
   }
 }
 

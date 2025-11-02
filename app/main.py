@@ -23,6 +23,7 @@ from app.library.dl_fields import DLFields
 from app.library.DownloadQueue import DownloadQueue
 from app.library.Events import EventBus, Events
 from app.library.HttpAPI import HttpAPI
+from app.library.Jobs import Jobs
 from app.library.HttpSocket import HttpSocket
 from app.library.Notifications import Notification
 from app.library.Presets import Presets
@@ -71,6 +72,7 @@ class Main:
         self._queue = DownloadQueue(connection=connection)
         self._http = HttpAPI(root_path=ROOT_PATH, queue=self._queue)
         self._socket = HttpSocket(root_path=ROOT_PATH, queue=self._queue)
+        self._jobs = Jobs.get_instance(connection=connection)
 
         self._app.on_cleanup.append(_close_connection)
 
@@ -128,6 +130,7 @@ class Main:
         self._socket.attach(self._app)
         self._http.attach(self._app)
         self._queue.attach(self._app)
+        self._jobs.attach(self._app)
 
         Tasks.get_instance().attach(self._app)
         Presets.get_instance().attach(self._app)

@@ -5,6 +5,7 @@ import yt_dlp
 from yt_dlp.utils import make_archive_id
 
 import app.postprocessors
+from app.library.Events import EventBus, Events
 
 
 class _ArchiveProxy:
@@ -72,6 +73,20 @@ class YTDLP(yt_dlp.YoutubeDL):
                 pass
 
         self.archive = _ArchiveProxy(orig_file)
+
+    def download(self, url_or_urls, info_dict=None):
+        job_id = info_dict.get("job_id") if info_dict else None
+        try:
+            result = super().download(url_or_urls)
+            if job_id:
+                # Assuming the last file path is the one we want
+                filepath = self.prepare_filename(info_dict) if info_dict else None
+                EventBus.get_instance().emit(Events.DOWNLOAD_COMPLETE, {"job_id": job_id, "filepath": filepath})
+            return result
+        except Exception as e:
+            if job_id:
+                EventBus.get_instance().emit(Events.DOWNLOAD_ERROR, {"job_id": job_id, "error": str(e)})
+            raise
 
     def _delete_downloaded_files(self, *args, **kwargs) -> None:
         if self._interrupted:
