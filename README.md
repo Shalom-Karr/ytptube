@@ -93,6 +93,15 @@ Then you can access the WebUI at `http://localhost:8081`.
 For `Unraid` users You can install the `Community Applications` plugin, and search for **ytptube** it comes 
 pre-configured.
 
+## Deploy to Render
+
+You can deploy your own instance of YTPTube to Render with a single click.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Shalom-Karr/ytptube)
+
+> [!NOTE]
+> This will deploy the application on Render's free tier, which does not include persistent storage. This means that any downloaded files or configuration changes will be lost when the application restarts.
+
 # API Documentation
 
 For simple API documentation, you can refer to the [API documentation](API.md).
